@@ -121,6 +121,8 @@ func processRepo(repo string, branches []string) {
 
 		if result, err := command.CombinedOutput(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
+			fmt.Fprintln(os.Stderr, command.Stderr)
+
 			os.Exit(1)
 		} else {
 			fmt.Println("Storing results for " + repoName)
