@@ -117,7 +117,7 @@ func processRepo(repo string, branches []string) {
 		args = []string{"--format=html", "-Tmw", repoName}
 
 		command := exec.Command(cmd, args...)
-		command.Stdin = os.Stdin
+		//command.Stdin = os.Stdin
 
 		if result, err := command.CombinedOutput(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
