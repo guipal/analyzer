@@ -123,6 +123,7 @@ func processRepo(repo string, branches []string) {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		} else {
+			fmt.Println("Storing results for " + repoName)
 			f, _ := os.Create("../analytics/" + repoName + ".html")
 			defer f.Close()
 			_, err := f.Write(result)
