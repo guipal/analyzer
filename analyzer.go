@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,10 +15,28 @@ import (
 
 func main() {
 
-	args := os.Args[1:]
-	var repositories, branches []string
+	var repositories []string
 
-	file, err := os.Open(args[0])
+	var repoFile, branch, since, until string
+
+	flag.StringVar(&repoFile, "repositories", "", "File containing new line separated list of repos")
+	flag.StringVar(&branch, "branch", "develop", "Branch to analyze")
+	flag.StringVar(&since, "since", "", "Begin date to analysis (YYYY/MM/dd)")
+	flag.StringVar(&until, "until", "", "End date for analysis (YYYY/MM/dd)")
+
+	flag.Parse()
+
+	args := flag.Args()
+
+	if repoFile == "" {
+		if len(args) > 0 {
+			repoFile = args[0]
+		} else {
+			log.Fatal("No repositories provided:  Execute 'analyzer -h' for help ")
+		}
+	}
+
+	file, err := os.Open(repoFile)
 	if err != nil {
 		log.Fatal(err)
 	} else {
@@ -34,28 +53,6 @@ func main() {
 
 	defer file.Close()
 
-	if len(args) < 2 {
-		branches = append(branches, "develop")
-	} else {
-
-		fileBranches, err := os.Open(args[1])
-		if err != nil {
-			log.Fatal(err)
-			branches = append(branches, "develop")
-		} else {
-
-			scanner := bufio.NewScanner(fileBranches)
-			for scanner.Scan() {
-				branches = append(branches, scanner.Text())
-			}
-
-			if err := scanner.Err(); err != nil {
-				log.Fatal(err)
-			}
-		}
-
-		defer fileBranches.Close()
-	}
 	createTmpDir()
 	createAnalyticsDir()
 
@@ -68,7 +65,7 @@ func main() {
 	for _, value := range repositories {
 		go func(value string) {
 			defer wg.Done()
-			processRepo(value, branches)
+			processRepo(value, branch, since, until)
 		}(value)
 	}
 	wg.Wait()
@@ -90,7 +87,7 @@ func createAnalyticsDir() {
 	}
 }
 
-func processRepo(repo string, branches []string) {
+func processRepo(repo string, branch string, since string, until string) {
 
 	repoName := getRepoName(repo)
 
@@ -103,40 +100,51 @@ func processRepo(repo string, branches []string) {
 	}
 	fmt.Println("Successfully cloned", repoName)
 
-	for _, value := range branches {
-
-		fmt.Println("Evaluating branch", value, "on repo", repoName)
-		cmd := "git"
-		args := []string{"--git-dir=" + repoName + "/.git", "--work-tree=" + repoName, "checkout", value}
-		if err := exec.Command(cmd, args...).Run(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			os.Exit(1)
-		}
-
-		cmd = "gitinspector.py"
-		args = []string{"--format=html", "-Tmw", repoName}
-
-		command := exec.Command(cmd, args...)
-		command.Stdin = os.Stdin
-
-		if result, err := command.CombinedOutput(); err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			fmt.Fprintln(os.Stderr, command.Stderr)
-
-			os.Exit(1)
-		} else {
-			fmt.Println("Storing results for " + repoName)
-			f, _ := os.Create("../analytics/" + repoName + ".html")
-			defer f.Close()
-			_, err := f.Write(result)
-			f.Sync()
-			if err != nil {
-				fmt.Println(err)
-			}
-		}
-		fmt.Println("Evaluated branch", value, "on repo", repoName)
-
+	fmt.Println("Evaluating branch", branch, "on repo", repoName)
+	cmd = "git"
+	args = []string{"--git-dir=" + repoName + "/.git", "--work-tree=" + repoName, "checkout", branch}
+	if err := exec.Command(cmd, args...).Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
+
+	cmd = "gitinspector.py"
+	args = []string{"--format=html", "-Tmw"}
+
+	fileName := repoName
+
+	if since != "" {
+		args = append(args, "--since="+since)
+		fileName = fileName + "_SINCE_" + since
+	}
+	if until != "" {
+		args = append(args, "--until="+until)
+		fileName = fileName + "_UNTIL_" + until
+	}
+
+	args = append(args, repoName)
+
+	command := exec.Command(cmd, args...)
+	command.Stdin = os.Stdin
+
+	if result, err := command.CombinedOutput(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, command.Stderr)
+
+		os.Exit(1)
+	} else {
+		fmt.Println("Storing results for " + repoName)
+		fileName = strings.Replace(fileName, "/", "-", -1)
+
+		f, _ := os.Create("../analytics/" + fileName + ".html")
+		defer f.Close()
+		_, err := f.Write(result)
+		f.Sync()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+	fmt.Println("Evaluated branch", branch, "on repo", repoName)
 
 }
 
