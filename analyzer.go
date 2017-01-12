@@ -19,8 +19,11 @@ func main() {
 
 	var repoFile, branch, since, until string
 
+	var agregated bool
+
 	flag.StringVar(&repoFile, "repositories", "", "File containing new line separated list of repos")
 	flag.StringVar(&branch, "branch", "develop", "Branch to analyze")
+	flag.BoolVar(&agregated, "agregate", false, "Agregate all repos in on single report")
 	flag.StringVar(&since, "since", "", "Begin date to analysis (YYYY/MM/dd)")
 	flag.StringVar(&until, "until", "", "End date for analysis (YYYY/MM/dd)")
 
@@ -59,16 +62,20 @@ func main() {
 	os.Chdir("tmp")
 
 	runtime.GOMAXPROCS(10)
-	var wg sync.WaitGroup
-	wg.Add(len(repositories))
+	if !agregated {
+		var wg sync.WaitGroup
+		wg.Add(len(repositories))
 
-	for _, value := range repositories {
-		go func(value string) {
-			defer wg.Done()
-			processRepo(value, branch, since, until)
-		}(value)
+		for _, value := range repositories {
+			go func(value string) {
+				defer wg.Done()
+				processRepo(value, branch, since, until)
+			}(value)
+		}
+		wg.Wait()
+	} else {
+		processAgregatedRepos(repositories, branch, since, until)
 	}
-	wg.Wait()
 	os.Chdir("../")
 	os.RemoveAll("tmp")
 
@@ -87,9 +94,7 @@ func createAnalyticsDir() {
 	}
 }
 
-func processRepo(repo string, branch string, since string, until string) {
-
-	repoName := getRepoName(repo)
+func cloneRepo(repoName string, repo string, branch string) {
 
 	fmt.Println("Cloning repo: ", repoName)
 	cmd := "git"
@@ -100,7 +105,7 @@ func processRepo(repo string, branch string, since string, until string) {
 	}
 	fmt.Println("Successfully cloned", repoName)
 
-	fmt.Println("Evaluating branch", branch, "on repo", repoName)
+	fmt.Println("Checking out branch", branch, "on repo", repoName)
 	cmd = "git"
 	args = []string{"--git-dir=" + repoName + "/.git", "--work-tree=" + repoName, "checkout", branch}
 	if err := exec.Command(cmd, args...).Run(); err != nil {
@@ -108,8 +113,71 @@ func processRepo(repo string, branch string, since string, until string) {
 		os.Exit(1)
 	}
 
-	cmd = "gitinspector.py"
-	args = []string{"--format=html", "-Tmw"}
+}
+
+func storeResults(fileName string, result []byte) {
+	f, _ := os.Create("../analytics/" + fileName + ".html")
+	defer f.Close()
+	_, err := f.Write(result)
+	f.Sync()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+}
+
+func processAgregatedRepos(repositories []string, branch string, since string, until string) {
+	var wg sync.WaitGroup
+
+	cmd := "gitinspector.py"
+	args := []string{"--format=html", "-Tmw"}
+
+	fileName := "aggregated_repo"
+
+	if since != "" {
+		args = append(args, "--since="+since)
+		fileName = fileName + "_SINCE_" + since
+	}
+	if until != "" {
+		args = append(args, "--until="+until)
+		fileName = fileName + "_UNTIL_" + until
+	}
+
+	wg.Add(len(repositories))
+
+	for _, value := range repositories {
+		go func(value string) {
+			defer wg.Done()
+			cloneRepo(getRepoName(value), value, branch)
+		}(value)
+		args = append(args, getRepoName(value))
+	}
+	wg.Wait()
+
+	command := exec.Command(cmd, args...)
+	command.Stdin = os.Stdin
+
+	if result, err := command.CombinedOutput(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, command.Stderr)
+		os.Exit(1)
+	} else {
+		fmt.Println("Storing results for")
+		fileName = strings.Replace(fileName, "/", "-", -1)
+		storeResults(fileName, result)
+
+	}
+	fmt.Println("Repos processed")
+
+}
+
+func processRepo(repo string, branch string, since string, until string) {
+
+	repoName := getRepoName(repo)
+	cloneRepo(repoName, repo, branch)
+
+	cmd := "gitinspector.py"
+	args := []string{"--format=html", "-Tmw"}
 
 	fileName := repoName
 
@@ -130,21 +198,14 @@ func processRepo(repo string, branch string, since string, until string) {
 	if result, err := command.CombinedOutput(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, command.Stderr)
-
 		os.Exit(1)
 	} else {
 		fmt.Println("Storing results for " + repoName)
 		fileName = strings.Replace(fileName, "/", "-", -1)
+		storeResults(fileName, result)
 
-		f, _ := os.Create("../analytics/" + fileName + ".html")
-		defer f.Close()
-		_, err := f.Write(result)
-		f.Sync()
-		if err != nil {
-			fmt.Println(err)
-		}
 	}
-	fmt.Println("Evaluated branch", branch, "on repo", repoName)
+	fmt.Println("Repo", repoName, " processed")
 
 }
 
