@@ -79,8 +79,8 @@ func main() {
 		command.Stdin = os.Stdin
 		writer := io.MultiWriter(os.Stdout)
 		command.Stdout = writer
+		command.Stderr = writer
 		if err := command.Run(); err != nil {
-			fmt.Fprintln(os.Stderr, command.Stderr)
 			os.Exit(1)
 		}
 	}
