@@ -130,8 +130,8 @@ func cloneRepo(repoName string, repo string, branch string) {
 	command.Stdin = os.Stdin
 	writer := io.MultiWriter(os.Stdout)
 	command.Stdout = writer
+	command.Stderr = writer
 	if err := command.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, command.Stderr)
 		os.Exit(1)
 	}
 	fmt.Println("Successfully cloned", repoName)
