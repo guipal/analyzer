@@ -78,10 +78,9 @@ func main() {
 		command := exec.Command(cmd, args...)
 		command.Stdin = os.Stdin
 		writer := io.MultiWriter(os.Stdout)
-		//writerError := io.MultiWriter(os.Stderr)
 		command.Stdout = writer
-		//command.Stderr = writerError
 		if err := command.Run(); err != nil {
+			fmt.Println("Not able to verify access")
 			os.Exit(1)
 		}
 	}
@@ -134,6 +133,7 @@ func cloneRepo(repoName string, repo string, branch string) {
 	command.Stdout = writer
 	//command.Stderr = writerError
 	if err := command.Run(); err != nil {
+		fmt.Println("Not able to clone repo")
 		os.Exit(1)
 	}
 	fmt.Println("Successfully cloned", repoName)
