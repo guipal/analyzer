@@ -64,6 +64,20 @@ func main() {
 	defer removeTmpDir()
 
 	runtime.GOMAXPROCS(10)
+
+	for _, value := range repositories {
+		cmd := "git"
+		args := []string{"ls-remote", "--tags", value}
+		command := exec.Command(cmd, args...)
+		command.Stdin = os.Stdin
+		writer := io.MultiWriter(os.Stdout)
+		command.Stdout = writer
+		if err := command.Run(); err != nil {
+			fmt.Fprintln(os.Stderr, command.Stderr)
+			os.Exit(1)
+		}
+	}
+
 	if !agregated {
 		var wg sync.WaitGroup
 		wg.Add(len(repositories))
