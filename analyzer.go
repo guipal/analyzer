@@ -78,7 +78,7 @@ func main() {
 		command := exec.Command(cmd, args...)
 		command.Stdin = os.Stdin
 		writer := io.MultiWriter(os.Stdout)
-		writerError := io.MultiWriter(os.Stdout)
+		writerError := io.MultiWriter(os.Stderr)
 		command.Stdout = writer
 		command.Stderr = writerError
 		if err := command.Run(); err != nil {
@@ -130,7 +130,7 @@ func cloneRepo(repoName string, repo string, branch string) {
 	command := exec.Command(cmd, args...)
 	command.Stdin = os.Stdin
 	writer := io.MultiWriter(os.Stdout)
-	writerError := io.MultiWriter(os.Stdout)
+	writerError := io.MultiWriter(os.Stderr)
 	command.Stdout = writer
 	command.Stderr = writerError
 	if err := command.Run(); err != nil {
