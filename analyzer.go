@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -83,7 +84,6 @@ func main() {
 func removeTmpDir() {
 	os.Chdir("../")
 	os.RemoveAll("tmp")
-
 }
 
 func createTmpDir() {
@@ -105,7 +105,10 @@ func cloneRepo(repoName string, repo string, branch string) {
 	cmd := "git"
 	args := []string{"clone", repo}
 	command := exec.Command(cmd, args...)
-	if _, err := command.CombinedOutput(); err != nil {
+	command.Stdin = os.Stdin
+	writer := io.MultiWriter(os.Stdout)
+	command.Stdout = writer
+	if err := command.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, command.Stderr)
 		os.Exit(1)
 	}
