@@ -33,33 +33,34 @@ func main() {
 
 	if repoFile == "" {
 		if len(args) > 0 {
-			repoFile = args[0]
+			repositories = flag.Args()
 		} else {
 			log.Fatal("No repositories provided:  Execute 'analyzer -h' for help ")
 		}
-	}
-
-	file, err := os.Open(repoFile)
-	if err != nil {
-		log.Fatal(err)
 	} else {
 
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			repositories = append(repositories, scanner.Text())
-		}
-
-		if err := scanner.Err(); err != nil {
+		file, err := os.Open(repoFile)
+		if err != nil {
 			log.Fatal(err)
+		} else {
+
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				repositories = append(repositories, scanner.Text())
+			}
+
+			if err := scanner.Err(); err != nil {
+				log.Fatal(err)
+			}
 		}
+
+		defer file.Close()
 	}
-
-	defer file.Close()
-
 	createTmpDir()
 	createAnalyticsDir()
 
 	os.Chdir("tmp")
+	defer removeTmpDir()
 
 	runtime.GOMAXPROCS(10)
 	if !agregated {
@@ -76,6 +77,10 @@ func main() {
 	} else {
 		processAgregatedRepos(repositories, branch, since, until)
 	}
+
+}
+
+func removeTmpDir() {
 	os.Chdir("../")
 	os.RemoveAll("tmp")
 
@@ -99,8 +104,9 @@ func cloneRepo(repoName string, repo string, branch string) {
 	fmt.Println("Cloning repo: ", repoName)
 	cmd := "git"
 	args := []string{"clone", repo}
-	if err := exec.Command(cmd, args...).Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	command := exec.Command(cmd, args...)
+	if _, err := command.CombinedOutput(); err != nil {
+		fmt.Fprintln(os.Stderr, command.Stderr)
 		os.Exit(1)
 	}
 	fmt.Println("Successfully cloned", repoName)
@@ -108,8 +114,9 @@ func cloneRepo(repoName string, repo string, branch string) {
 	fmt.Println("Checking out branch", branch, "on repo", repoName)
 	cmd = "git"
 	args = []string{"--git-dir=" + repoName + "/.git", "--work-tree=" + repoName, "checkout", branch}
-	if err := exec.Command(cmd, args...).Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	command = exec.Command(cmd, args...)
+	if _, err := command.CombinedOutput(); err != nil {
+		fmt.Fprintln(os.Stderr, command.Stderr)
 		os.Exit(1)
 	}
 
@@ -158,7 +165,6 @@ func processAgregatedRepos(repositories []string, branch string, since string, u
 	command.Stdin = os.Stdin
 
 	if result, err := command.CombinedOutput(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
 		fmt.Fprintln(os.Stderr, command.Stderr)
 		os.Exit(1)
 	} else {
