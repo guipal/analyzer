@@ -80,7 +80,7 @@ func main() {
 		writer := io.MultiWriter(os.Stdout)
 		writerError := io.MultiWriter(os.Stderr)
 		command.Stdout = writer
-		command.Stderr = writerError
+		//command.Stderr = writerError
 		if err := command.Run(); err != nil {
 			os.Exit(1)
 		}
@@ -132,7 +132,7 @@ func cloneRepo(repoName string, repo string, branch string) {
 	writer := io.MultiWriter(os.Stdout)
 	writerError := io.MultiWriter(os.Stderr)
 	command.Stdout = writer
-	command.Stderr = writerError
+	//command.Stderr = writerError
 	if err := command.Run(); err != nil {
 		os.Exit(1)
 	}
