@@ -28,6 +28,12 @@ func main() {
 	flag.StringVar(&since, "since", "", "Begin date to analysis (YYYY/MM/dd)")
 	flag.StringVar(&until, "until", "", "End date for analysis (YYYY/MM/dd)")
 
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage of %s: %s\n", os.Args[0], os.Args[0]+" [OPTIONS] [repository_URL]*")
+		fmt.Fprintf(os.Stderr, "OPTIONS:\n")
+		flag.PrintDefaults()
+	}
+
 	flag.Parse()
 
 	args := flag.Args()
@@ -65,6 +71,7 @@ func main() {
 
 	runtime.GOMAXPROCS(10)
 
+	log.Print("Checking access to provided repositories")
 	for _, value := range repositories {
 		cmd := "git"
 		args := []string{"ls-remote", "--tags", value}
@@ -77,6 +84,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	log.Print("Access granted to all provided repos")
 
 	if !agregated {
 		var wg sync.WaitGroup
