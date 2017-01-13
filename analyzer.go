@@ -74,7 +74,7 @@ func main() {
 	log.Print("Checking access to provided repositories")
 	for _, value := range repositories {
 		cmd := "git"
-		args := []string{"ls-remote", "--tags", value}
+		args := []string{"ls-remote", value, "foo"}
 		command := exec.Command(cmd, args...)
 		command.Stdin = os.Stdin
 		writer := io.MultiWriter(os.Stdout)
