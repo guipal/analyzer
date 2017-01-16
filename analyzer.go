@@ -74,23 +74,21 @@ func main() {
 
 	runtime.GOMAXPROCS(10)
 
-	if clone {
-		log.Print("Checking access to provided repositories")
-		for _, value := range repositories {
-			cmd := "git"
-			args := []string{"ls-remote", value, "foo"}
-			command := exec.Command(cmd, args...)
-			command.Stdin = os.Stdin
-			writer := io.MultiWriter(os.Stdout)
-			command.Stdout = writer
-			command.Stderr = os.Stderr
-			if err := command.Run(); err != nil {
-				//fmt.Println("Not able to verify access")
-				os.Exit(1)
-			}
+	log.Print("Checking access to provided repositories")
+	for _, value := range repositories {
+		cmd := "git"
+		args := []string{"ls-remote", value, "foo"}
+		command := exec.Command(cmd, args...)
+		command.Stdin = os.Stdin
+		writer := io.MultiWriter(os.Stdout)
+		command.Stdout = writer
+		command.Stderr = os.Stderr
+		if err := command.Run(); err != nil {
+			//fmt.Println("Not able to verify access")
+			os.Exit(1)
 		}
-		log.Print("Access granted to all provided repos")
 	}
+	log.Print("Access granted to all provided repos")
 	if !agregated {
 		var wg sync.WaitGroup
 		wg.Add(len(repositories))
@@ -199,7 +197,7 @@ func processAgregatedRepos(repositories []string, branch string, since string, u
 			if clone {
 				cloneRepo(getRepoName(value), value, branch, true)
 			} else {
-				cloneRepo(value, value, branch, true)
+				cloneRepo(value, value, branch, false)
 			}
 		}(value)
 		if clone {
