@@ -20,16 +20,17 @@ func main() {
 
 	var repoFile, branch, since, until string
 
-	var agregated bool
+	var agregated, clone bool
 
 	flag.StringVar(&repoFile, "repositories", "", "File containing new line separated list of repos")
 	flag.StringVar(&branch, "branch", "develop", "Branch to analyze")
 	flag.BoolVar(&agregated, "agregate", false, "Agregate all repos in on single report")
 	flag.StringVar(&since, "since", "", "Begin date to analysis (YYYY/MM/dd)")
 	flag.StringVar(&until, "until", "", "End date for analysis (YYYY/MM/dd)")
+	flag.BoolVar(&clone, "remoteRepos", false, "Use remote repositories (Needs repo clone url as parameter)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s: %s\n", os.Args[0], os.Args[0]+" [OPTIONS] [repository_URL]*")
+		fmt.Fprintf(os.Stderr, "Usage of %s: %s | %s\n", os.Args[0], os.Args[0]+" [OPTIONS] [repository]*", os.Args[0]+" -remoteRepos [OPTIONS] [repository_URL]*")
 		fmt.Fprintf(os.Stderr, "OPTIONS:\n")
 		flag.PrintDefaults()
 	}
@@ -63,30 +64,33 @@ func main() {
 
 		defer file.Close()
 	}
-	createTmpDir()
 	createAnalyticsDir()
 
-	os.Chdir("tmp")
-	defer removeTmpDir()
+	if clone {
+		createTmpDir()
+		os.Chdir("tmp")
+		defer removeTmpDir()
+	}
 
 	runtime.GOMAXPROCS(10)
 
-	log.Print("Checking access to provided repositories")
-	for _, value := range repositories {
-		cmd := "git"
-		args := []string{"ls-remote", value, "foo"}
-		command := exec.Command(cmd, args...)
-		command.Stdin = os.Stdin
-		writer := io.MultiWriter(os.Stdout)
-		command.Stdout = writer
-		command.Stderr = os.Stderr
-		if err := command.Run(); err != nil {
-			//fmt.Println("Not able to verify access")
-			os.Exit(1)
+	if clone {
+		log.Print("Checking access to provided repositories")
+		for _, value := range repositories {
+			cmd := "git"
+			args := []string{"ls-remote", value, "foo"}
+			command := exec.Command(cmd, args...)
+			command.Stdin = os.Stdin
+			writer := io.MultiWriter(os.Stdout)
+			command.Stdout = writer
+			command.Stderr = os.Stderr
+			if err := command.Run(); err != nil {
+				//fmt.Println("Not able to verify access")
+				os.Exit(1)
+			}
 		}
+		log.Print("Access granted to all provided repos")
 	}
-	log.Print("Access granted to all provided repos")
-
 	if !agregated {
 		var wg sync.WaitGroup
 		wg.Add(len(repositories))
@@ -94,12 +98,12 @@ func main() {
 		for _, value := range repositories {
 			go func(value string) {
 				defer wg.Done()
-				processRepo(value, branch, since, until)
+				processRepo(value, branch, since, until, clone)
 			}(value)
 		}
 		wg.Wait()
 	} else {
-		processAgregatedRepos(repositories, branch, since, until)
+		processAgregatedRepos(repositories, branch, since, until, clone)
 	}
 
 }
@@ -122,35 +126,45 @@ func createAnalyticsDir() {
 	}
 }
 
-func cloneRepo(repoName string, repo string, branch string) {
+func cloneRepo(repoName string, repo string, branch string, clone bool) {
 
-	fmt.Println("Cloning repo: ", repoName)
-	cmd := "git"
-	args := []string{"clone", repo}
-	command := exec.Command(cmd, args...)
-	command.Stdin = os.Stdin
-	writer := io.MultiWriter(os.Stdout)
-	command.Stdout = writer
-	command.Stderr = os.Stderr
-	if err := command.Run(); err != nil {
-		//fmt.Println("Not able to clone repo")
-		os.Exit(1)
+	if clone {
+		cmd := "git"
+		args := []string{"clone", repo}
+		fmt.Println("Cloning repo: ", repoName)
+		cloneCommand := exec.Command(cmd, args...)
+		cloneCommand.Stdin = os.Stdin
+		writer := io.MultiWriter(os.Stdout)
+		cloneCommand.Stdout = writer
+		cloneCommand.Stderr = os.Stderr
+		if err := cloneCommand.Run(); err != nil {
+			os.Exit(1)
+		}
+		fmt.Println("Successfully cloned", repoName)
 	}
-	fmt.Println("Successfully cloned", repoName)
-
 	fmt.Println("Checking out branch", branch, "on repo", repoName)
-	cmd = "git"
-	args = []string{"--git-dir=" + repoName + "/.git", "--work-tree=" + repoName, "checkout", branch}
-	command = exec.Command(cmd, args...)
-	if _, err := command.CombinedOutput(); err != nil {
-		fmt.Fprintln(os.Stderr, command.Stderr)
+	cmd := "git"
+	args := []string{"--git-dir=" + repoName + "/.git", "--work-tree=" + repoName, "checkout", branch}
+	checkoutCommand := exec.Command(cmd, args...)
+	checkoutCommand.Stdin = os.Stdin
+	checkoutCommand.Stdout = os.Stdout
+	checkoutCommand.Stderr = os.Stderr
+	if err := checkoutCommand.Run(); err != nil {
 		os.Exit(1)
 	}
 
 }
 
-func storeResults(fileName string, result []byte) {
-	f, _ := os.Create("../analytics/" + fileName + ".html")
+func storeResults(fileName string, result []byte, clone bool) {
+	var path string
+
+	if clone {
+		path = "../analytics/" + fileName + ".html"
+	} else {
+		path = "analytics/" + fileName + ".html"
+	}
+
+	f, _ := os.Create(path)
 	defer f.Close()
 	_, err := f.Write(result)
 	f.Sync()
@@ -160,7 +174,7 @@ func storeResults(fileName string, result []byte) {
 
 }
 
-func processAgregatedRepos(repositories []string, branch string, since string, until string) {
+func processAgregatedRepos(repositories []string, branch string, since string, until string, clone bool) {
 	var wg sync.WaitGroup
 
 	cmd := "gitinspector.py"
@@ -182,9 +196,17 @@ func processAgregatedRepos(repositories []string, branch string, since string, u
 	for _, value := range repositories {
 		go func(value string) {
 			defer wg.Done()
-			cloneRepo(getRepoName(value), value, branch)
+			if clone {
+				cloneRepo(getRepoName(value), value, branch, true)
+			} else {
+				cloneRepo(value, value, branch, true)
+			}
 		}(value)
-		args = append(args, getRepoName(value))
+		if clone {
+			args = append(args, getRepoName(value))
+		} else {
+			args = append(args, value)
+		}
 	}
 	wg.Wait()
 
@@ -197,17 +219,24 @@ func processAgregatedRepos(repositories []string, branch string, since string, u
 	} else {
 		fmt.Println("Storing results for")
 		fileName = strings.Replace(fileName, "/", "-", -1)
-		storeResults(fileName, result)
+		storeResults(fileName, result, clone)
 
 	}
 	fmt.Println("Repos processed")
 
 }
 
-func processRepo(repo string, branch string, since string, until string) {
+func processRepo(repo string, branch string, since string, until string, clone bool) {
 
-	repoName := getRepoName(repo)
-	cloneRepo(repoName, repo, branch)
+	var repoName string
+
+	if clone {
+		repoName = getRepoName(repo)
+	} else {
+		repoName = repo
+	}
+
+	cloneRepo(repoName, repo, branch, clone)
 
 	cmd := "gitinspector.py"
 	args := []string{"--format=html", "-Tmw"}
@@ -235,7 +264,7 @@ func processRepo(repo string, branch string, since string, until string) {
 	} else {
 		fmt.Println("Storing results for " + repoName)
 		fileName = strings.Replace(fileName, "/", "-", -1)
-		storeResults(fileName, result)
+		storeResults(fileName, result, clone)
 
 	}
 	fmt.Println("Repo", repoName, " processed")
