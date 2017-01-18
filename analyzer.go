@@ -30,7 +30,7 @@ func main() {
 	flag.BoolVar(&clone, "remoteRepos", false, "Use remote repositories (Needs repo clone url as parameter)")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage of %s: %s | %s\n", os.Args[0], os.Args[0]+" [OPTIONS] [repository]*", os.Args[0]+" -remoteRepos [OPTIONS] [repository_URL]*")
+		fmt.Fprintf(os.Stderr, "Usage of %s:\n %s\n %s\n", os.Args[0], os.Args[0]+" [OPTIONS] [repository]*", os.Args[0]+" -remoteRepos [OPTIONS] [repository_URL]*")
 		fmt.Fprintf(os.Stderr, "OPTIONS:\n")
 		flag.PrintDefaults()
 	}
